@@ -16,7 +16,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
         'address': [fake.address().replace('\n', ', ') for _ in range(n_records)],
         'email': [fake.email() for _ in range(n_records)],
         'phone_number': [fake.phone_number() for _ in range(n_records)],
-        'duplicate_id': [np.nan] * n_records,  # Add a new column for the duplicate ID
+        'duplicate_id': range(1, n_records+1),  # Add a new column for the duplicate ID
         'num_modifications': [0] * n_records  # Add a new column for the number of modifications
     })
 
@@ -28,24 +28,34 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
                 ,'switch_name_order'
                 ,'change_case']
         mod = random.choice(mods)
-        if mod == 'add_initial':
+        print(f"Chosen modification: {mod}")
+        
+        if mod == 'add_middle_initial':
             if len(name.split()) > 1:
                 first, last = name.split(' ')
                 middle_initial = fake.random_uppercase_letter()
-                return f"{first} {middle_initial}. {last}"
+                modified_name = f"{first} {middle_initial}. {last}"
             else:
-                return f"{name} {fake.random_uppercase_letter}."
+                modified_name = f"{name} {fake.random_uppercase_letter}."
+                
         elif mod == 'add_prefix':
             prefix = fake.prefix()
-            return f"{prefix} {name}"
+            modified_name = f"{prefix} {name}"
+            
         elif mod == 'typo':
-            index = np.random.randint(len(name))
-            return name[:index] + fake.random_lowercase_letter() + name[index+1:]
+            index = random.randint(0, len(name)-1)
+            modified_name = name[:index] + fake.random_lowercase_letter() + name[index+1:]
+            
         elif mod == 'switch_name_order':
             name_parts = name.split()
-            return ', '.join(name_parts[::-1])
+            modified_name = ', '.join(name_parts[::-1])
+            
         elif mod == 'change_case':
-            return name.upper() if random.choice([True, False]) else name.lower()
+            modified_name = name.upper() if random.choice([True, False]) else name.lower()
+        
+        print(f"Modified name: {modified_name}")
+        return modified_name
+
 
     def modify_email(email):
         user, domain = email.split('@')
@@ -63,7 +73,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
         return phone_number.replace(digit_to_replace, str(fake.random_digit()), 1)
 
     def modification(field, value):
-        if field == 'name':
+        if field == 'client_name':
             return modify_name(value)
         elif field == 'address':
             return modify_address(value)
@@ -81,7 +91,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
         #print(duplicate)
         new_client_id = df_new['client_id'].max() + 1  # Assign a new client_id
         duplicate['client_id'] = new_client_id
-        duplicate['duplicate_id'] = idx + 1  # Assign the duplicate ID to be the original client_id
+        duplicate['duplicate_id'] = int(idx + 1)  # Assign the duplicate ID to be the original client_id
 
         # Randomly select zero or more fields to modify (excluding client_id)
         num_modifications = np.random.choice([0, 0, 1, 1, 2])  # Make 2 modifications rarer
@@ -104,7 +114,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
             duplicate = df_new.loc[idx].copy()
             new_client_id = df_new['client_id'].max() + 1  # Assign a new client_id
             duplicate['client_id'] = new_client_id
-            duplicate['duplicate_id'] = idx + 1  # Assign the duplicate ID to be the original client_id
+            duplicate['duplicate_id'] = int(idx + 1)  # Assign the duplicate ID to be the original client_id
 
             num_modifications = np.random.choice([0, 0, 1, 1, 2])  # Make 2 modifications rarer
             duplicate['num_modifications'] = num_modifications
@@ -125,7 +135,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
             duplicate = df_new.loc[idx].copy()
             new_client_id = df_new['client_id'].max() + 1  # Assign a new client_id
             duplicate['client_id'] = new_client_id
-            duplicate['duplicate_id'] = idx + 1  # Assign the duplicate ID to be the original client_id
+            duplicate['duplicate_id'] = int(idx + 1)  # Assign the duplicate ID to be the original client_id
 
             num_modifications = np.random.choice([0, 0, 1, 1, 2])  # Make 2 modifications rarer
             duplicate['num_modifications'] = num_modifications
@@ -147,7 +157,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
                 duplicate = df_new.loc[idx].copy()
                 new_client_id = df_new['client_id'].max() + 1  # Assign a new client_id
                 duplicate['client_id'] = new_client_id
-                duplicate['duplicate_id'] = idx + 1  # Assign the duplicate ID to be the original client_id
+                duplicate['duplicate_id'] = int(idx + 1)  # Assign the duplicate ID to be the original client_id
 
                 num_modifications = np.random.choice([0, 0, 1, 1, 2])  # Make 2 modifications rarer
                 duplicate['num_modifications'] = num_modifications

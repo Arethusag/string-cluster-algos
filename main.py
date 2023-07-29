@@ -1,7 +1,12 @@
 # %%
 import findspark
-import os
+import time
 findspark.init()
+
+
+
+start_time = time.time()
+
 
 from pyspark.sql import SparkSession
 
@@ -48,7 +53,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
         print(f"Chosen modification: {mod}")
         
         if mod == 'add_middle_initial':
-            if len(name.split()) > 1:
+            if len(name.split()) == 2:
                 first, last = name.split(' ')
                 middle_initial = fake.random_uppercase_letter()
                 modified_name = f"{first} {middle_initial}. {last}"
@@ -197,11 +202,11 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
     return df_new
 
 
-num_records = 10
-num_duplicates0 = 5
-num_duplicates1 = 3
-num_duplicates2 = 2
-num_duplicates3 = 0
+num_records = 10000
+num_duplicates0 = 500
+num_duplicates1 = 300
+num_duplicates2 = 200
+num_duplicates3 = 100
 
 df_pandas = create_synthetic_records(num_records, num_duplicates0, num_duplicates1, num_duplicates2, num_duplicates3)
 
@@ -219,8 +224,6 @@ df_pandas = df_pandas.astype({
 
 
 df = spark.createDataFrame(df_pandas)
-df.show()
-df.count()
 
 # %%
 from pyspark.ml.clustering import KMeans
@@ -278,3 +281,13 @@ graph_frame = GraphFrame(vertices, edges)
 components_df = graph_frame.connectedComponents().withColumn("min_id", min(col("id")).over(Window.partitionBy("component")))
 
 
+df.show()
+df.count()
+model_df.show()
+similarity_df.show()
+components_df.show()
+components_df.count()
+
+end_time = time.time()
+runtime = end_time - start_time
+print(f"The runtime of the script is {runtime} seconds.")

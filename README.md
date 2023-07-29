@@ -1,2 +1,2 @@
-# Dedup-algo-names
+# Deduplication Algorithm testing
  

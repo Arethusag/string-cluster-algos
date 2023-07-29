@@ -1,4 +1,21 @@
 # %%
+import findspark
+import os
+findspark.init()
+
+from pyspark.sql import SparkSession
+
+
+spark = SparkSession.builder \
+    .appName("deduplication") \
+    .master("local[*]") \
+    .config("spark.jars.packages", "graphframes:graphframes:0.8.2-spark3.2-s_2.12") \
+    .getOrCreate()
+
+spark.sparkContext.setCheckpointDir("/tmp/")
+
+
+# %%
 def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_duplicates2 = 0,n_duplicates3 = 0 ):
 
     from faker import Faker
@@ -105,7 +122,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
                 duplicate[field] = modification(field,value)
 
         # Append the duplicate to the DataFrame
-        df_new = df_new.append(duplicate, ignore_index=True)
+        df_new = pd.concat([df_new, duplicate.to_frame().transpose()], ignore_index=True)
         #print(idx,duplicate)
 
         # Create additional duplicates for a subset of the original records
@@ -127,7 +144,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
                     duplicate[field] = modification(field,value)
 
             # Append the duplicate to the DataFrame
-            df_new = df_new.append(duplicate, ignore_index=True)
+            df_new = pd.concat([df_new, duplicate.to_frame().transpose()], ignore_index=True)
             #print(idx,duplicate)
 
         if idx < n_duplicates2:
@@ -148,7 +165,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
                     duplicate[field] = modification(field,value)
 
             # Append the duplicate to the DataFrame
-            df_new = df_new.append(duplicate, ignore_index=True)
+            df_new = pd.concat([df_new, duplicate.to_frame().transpose()], ignore_index=True)
             #print(idx,duplicate)
 
         if idx == 0:
@@ -170,7 +187,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
                         duplicate[field] = modification(field,value)
 
                 # Append the duplicate to the DataFrame
-                df_new = df_new.append(duplicate, ignore_index=True)
+                df_new = pd.concat([df_new, duplicate.to_frame().transpose()], ignore_index=True)
                 #print(idx,duplicate)
         
         #print(len(df_new))
@@ -179,7 +196,85 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
     df_new = df_new.sample(frac=1).reset_index(drop=True)
     return df_new
 
-# %%
 
+num_records = 10
+num_duplicates0 = 5
+num_duplicates1 = 3
+num_duplicates2 = 2
+num_duplicates3 = 0
+
+df_pandas = create_synthetic_records(num_records, num_duplicates0, num_duplicates1, num_duplicates2, num_duplicates3)
+
+
+df_pandas = df_pandas.astype({
+    'client_id': 'int64',  # or 'int32' if your numbers are not too large
+    'client_name': 'string',
+    'address': 'string',
+    'email': 'string',
+    'phone_number': 'string',
+    'duplicate_id': 'int64',  # or 'int32' if your numbers are not too large
+    'num_modifications': 'int64'  # or 'int32' if your numbers are not too large
+})
+
+
+
+df = spark.createDataFrame(df_pandas)
+df.show()
+df.count()
+
+# %%
+from pyspark.ml.clustering import KMeans
+from pyspark.ml.feature import Tokenizer, SQLTransformer, RegexTokenizer, NGram, HashingTF
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml import Pipeline
+
+from pyspark.sql.functions import col, concat_ws, split, array_sort, min
+from pyspark.sql.window import Window
+from pyspark.ml.feature import MinHashLSH
+
+from graphframes import *
+#parameters
+distance_threshold = 0.1
+
+#black box
+transform0  =    SQLTransformer(statement="""SELECT *,LOWER(REGEXP_REPLACE(CONCAT(client_name, address, email, phone_number), 
+        '[\\s\\W]', '')) AS record_strings FROM __THIS__ """)
+token0      =    Tokenizer(inputCol="client_name", outputCol="token" )
+transform1  =    SQLTransformer(statement="SELECT *, concat_ws(' ', token) concat FROM __THIS__")
+token1      =    RegexTokenizer(pattern="", inputCol="concat", outputCol="char", minTokenLength=1 )
+ngram       =    NGram(n=2, inputCol="char", outputCol="ngram")
+hash      =    HashingTF(inputCol="ngram", outputCol="vector")
+
+# add to pipeline when using big data
+feat        =    VectorAssembler(inputCols=["vector"], outputCol="features")
+kmeans      =    KMeans(k = 2, seed = 1, predictionCol="kmeans")
+
+stages = [transform0,token0,transform1,token1,ngram,hash] #feat,kmeans
+
+#pre-processing
+pipeline = Pipeline(stages=stages)
+model = pipeline.fit(df)
+model_df = model.transform(df)
+
+ 
+#knn then jaccard distance
+lsh_model = MinHashLSH(inputCol="vector", outputCol="lsh", numHashTables=3).fit(model_df)
+similarity_df = lsh_model.approxSimilarityJoin(model_df, model_df, distance_threshold, distCol="text_distance").filter("datasetA.client_id != datasetB.client_id")
+
+ 
+#graphx
+edges = (similarity_df.selectExpr("datasetA.client_id as src","datasetB.client_id as dst")
+        .withColumn('set_col', concat_ws(',', col('src'), col('dst')))
+        .withColumn('sorted_set', array_sort(split(col('set_col'), ',')))
+        .dropDuplicates(['sorted_set']).select(col("src"), col("dst")))
+
+vertices = (similarity_df.selectExpr("datasetA.client_id as id").union(similarity_df.selectExpr("datasetB.client_id as id"))).distinct()
+
+
+#connections graph
+graph_frame = GraphFrame(vertices, edges)
+
+#slow
+components_df = graph_frame.connectedComponents().withColumn("min_id", min(col("id")).over(Window.partitionBy("component")))
 
 

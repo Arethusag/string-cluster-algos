@@ -202,11 +202,11 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
     return df_new
 
 
-num_records = 10000
-num_duplicates0 = 500
-num_duplicates1 = 300
-num_duplicates2 = 200
-num_duplicates3 = 100
+num_records = 100000
+num_duplicates0 = 5000
+num_duplicates1 = 3000
+num_duplicates2 = 2000
+num_duplicates3 = 1000
 
 df_pandas = create_synthetic_records(num_records, num_duplicates0, num_duplicates1, num_duplicates2, num_duplicates3)
 
@@ -239,21 +239,19 @@ from graphframes import *
 #parameters
 distance_threshold = 0.1
 
-#black box
+#p
 transform0  =    SQLTransformer(statement="""SELECT *,LOWER(REGEXP_REPLACE(CONCAT(client_name, address, email, phone_number), 
         '[\\s\\W]', '')) AS record_strings FROM __THIS__ """)
-token0      =    Tokenizer(inputCol="client_name", outputCol="token" )
+token0      =    Tokenizer(inputCol="record_strings", outputCol="token" )
 transform1  =    SQLTransformer(statement="SELECT *, concat_ws(' ', token) concat FROM __THIS__")
 token1      =    RegexTokenizer(pattern="", inputCol="concat", outputCol="char", minTokenLength=1 )
 ngram       =    NGram(n=2, inputCol="char", outputCol="ngram")
 hash      =    HashingTF(inputCol="ngram", outputCol="vector")
 
-# add to pipeline when using big data
-feat        =    VectorAssembler(inputCols=["vector"], outputCol="features")
-kmeans      =    KMeans(k = 2, seed = 1, predictionCol="kmeans")
+# feat        =    VectorAssembler(inputCols=["vector"], outputCol="features")
+# kmeans      =    KMeans(k = 2, seed = 1, predictionCol="kmeans")
 
-stages = [transform0,token0,transform1,token1,ngram,hash] #feat,kmeans
-
+stages = [transform0,token0,transform1,token1,ngram,hash]
 #pre-processing
 pipeline = Pipeline(stages=stages)
 model = pipeline.fit(df)
@@ -280,13 +278,6 @@ graph_frame = GraphFrame(vertices, edges)
 #slow
 components_df = graph_frame.connectedComponents().withColumn("min_id", min(col("id")).over(Window.partitionBy("component")))
 
-
-df.show()
-df.count()
-model_df.show()
-similarity_df.show()
-components_df.show()
-components_df.count()
 
 end_time = time.time()
 runtime = end_time - start_time

@@ -1,4 +1,3 @@
-# %%
 def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_duplicates2 = 0,n_duplicates3 = 0 ):
 
     from faker import Faker
@@ -31,7 +30,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
         print(f"Chosen modification: {mod}")
         
         if mod == 'add_middle_initial':
-            if len(name.split()) > 1:
+            if len(name.split()) == 2:
                 first, last = name.split(' ')
                 middle_initial = fake.random_uppercase_letter()
                 modified_name = f"{first} {middle_initial}. {last}"
@@ -105,7 +104,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
                 duplicate[field] = modification(field,value)
 
         # Append the duplicate to the DataFrame
-        df_new = df_new.append(duplicate, ignore_index=True)
+        df_new = pd.concat([df_new, duplicate.to_frame().transpose()], ignore_index=True)
         #print(idx,duplicate)
 
         # Create additional duplicates for a subset of the original records
@@ -127,7 +126,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
                     duplicate[field] = modification(field,value)
 
             # Append the duplicate to the DataFrame
-            df_new = df_new.append(duplicate, ignore_index=True)
+            df_new = pd.concat([df_new, duplicate.to_frame().transpose()], ignore_index=True)
             #print(idx,duplicate)
 
         if idx < n_duplicates2:
@@ -148,7 +147,7 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
                     duplicate[field] = modification(field,value)
 
             # Append the duplicate to the DataFrame
-            df_new = df_new.append(duplicate, ignore_index=True)
+            df_new = pd.concat([df_new, duplicate.to_frame().transpose()], ignore_index=True)
             #print(idx,duplicate)
 
         if idx == 0:
@@ -170,16 +169,19 @@ def create_synthetic_records(n_records,n_duplicates0 = 0,n_duplicates1 = 0,n_dup
                         duplicate[field] = modification(field,value)
 
                 # Append the duplicate to the DataFrame
-                df_new = df_new.append(duplicate, ignore_index=True)
+                df_new = pd.concat([df_new, duplicate.to_frame().transpose()], ignore_index=True)
                 #print(idx,duplicate)
         
         #print(len(df_new))
 
     # Shuffle the DataFrame
     df_new = df_new.sample(frac=1).reset_index(drop=True)
-    return df_new
-
-# %%
-
-
-
+    return df_new.astype({
+    'client_id': 'int64',  # or 'int32' if your numbers are not too large
+    'client_name': 'string',
+    'address': 'string',
+    'email': 'string',
+    'phone_number': 'string',
+    'duplicate_id': 'int64',  # or 'int32' if your numbers are not too large
+    'num_modifications': 'int64'  # or 'int32' if your numbers are not too large
+})

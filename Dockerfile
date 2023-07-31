@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
 
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64/
 
-
+COPY . /app
 WORKDIR /app
 
 
